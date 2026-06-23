@@ -1,0 +1,23 @@
+#Web Framework
+flask==3.1.1
+flask-jwt-extended==4.7.1
+flask-sqlalchemy==3.1.1
+flask-cors==5.0.0       
+
+#Security & Crypto
+bcrypt==4.3.0
+pycryptodome==3.21.0
+
+#Database
+sqlalchemy==2.0.41
+
+#HTTP & Utilities
+requests==2.32.3
+python-dotenv==1.1.0
+
+#Production WSGI Server 
+gunicorn==23.0.0           
+
+#Telegram MTProto
+pyrogram==2.0.106
+tgcrypto

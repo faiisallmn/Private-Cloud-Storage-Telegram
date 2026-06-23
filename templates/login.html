@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Private Cloud Storage - Penyimpanan file pribadi terenkripsi">
+    <title>Private Cloud Storage — Login</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #09090b;
+            --bg-card: #18181b;
+            --bg-input: #09090b;
+            --border-default: #27272a;
+            --border-hover: #3f3f46;
+            --border-focus: #3b82f6;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-placeholder: #52525b;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --radius-card: 12px;
+            --radius-input: 8px;
+            --radius-btn: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font);
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .auth-wrapper {
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+        }
+
+        .auth-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-card);
+            padding: 32px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .auth-logo {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background-color: var(--bg-body);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .auth-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+            margin-bottom: 4px;
+        }
+
+        .auth-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .form-control-custom {
+            width: 100%;
+            padding: 10px 12px 10px 36px;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-input);
+            color: var(--text-primary);
+            font-family: var(--font);
+            font-size: 0.875rem;
+            transition: border-color 0.15s ease;
+            outline: none;
+        }
+
+        .form-control-custom::placeholder {
+            color: var(--text-placeholder);
+        }
+
+        .form-control-custom:hover {
+            border-color: var(--border-hover);
+        }
+
+        .form-control-custom:focus {
+            border-color: var(--border-focus);
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 2px;
+            transition: color 0.15s;
+        }
+
+        .toggle-password:hover {
+            color: var(--text-primary);
+        }
+
+        .btn-auth {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--text-primary);
+            color: var(--bg-body);
+            border: none;
+            border-radius: var(--radius-btn);
+            font-family: var(--font);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .btn-auth:hover {
+            background-color: #e5e5e5;
+        }
+
+        .btn-auth:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-auth .spinner {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--bg-body);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+
+        .btn-auth.loading .spinner {
+            display: block;
+        }
+
+        .btn-auth.loading .btn-text {
+            opacity: 0.9;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert-custom {
+            padding: 10px 12px;
+            border-radius: var(--radius-input);
+            font-size: 0.8125rem;
+            margin-bottom: 16px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-custom.show {
+            display: flex;
+        }
+
+        .alert-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .alert-success {
+            background-color: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .auth-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .auth-footer a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .auth-form {
+            display: block;
+        }
+
+        .auth-form.hidden {
+            display: none;
+        }
+
+        .password-strength {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .strength-bar {
+            flex: 1;
+            height: 2px;
+            background-color: var(--border-default);
+            border-radius: 1px;
+            transition: background-color 0.2s;
+        }
+
+        .strength-bar.weak { background-color: var(--danger); }
+        .strength-bar.medium { background-color: #eab308; }
+        .strength-bar.strong { background-color: var(--success); }
+
+        .strength-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .form-control-custom.is-invalid {
+            border-color: var(--danger);
+        }
+
+        .form-control-custom.is-valid {
+            border-color: var(--border-default);
+        }
+
+        .invalid-feedback {
+            font-size: 0.75rem;
+            color: var(--danger);
+            margin-top: 4px;
+            display: none;
+        }
+
+        .form-control-custom.is-invalid ~ .invalid-feedback {
+            display: block;
+        }
+
+        .security-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .security-badge i {
+            color: var(--text-secondary);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="auth-wrapper">
+        <div class="auth-card">
+
+            <div class="auth-logo">
+                <div class="logo-icon">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                </div>
+                <h1 class="auth-title">Cloud Storage</h1>
+                <p class="auth-subtitle" id="authSubtitle">Masuk ke akun Anda</p>
+            </div>
+
+            <!-- Alert notifikasi error/sukses -->
+            <div class="alert-custom alert-error" id="alertError">
+                <i class="bi bi-exclamation-circle"></i>
+                <span id="alertErrorText"></span>
+            </div>
+            <div class="alert-custom alert-success" id="alertSuccess">
+                <i class="bi bi-check-circle"></i>
+                <span id="alertSuccessText"></span>
+            </div>
+
+            <!-- Form Login -->
+            <form id="loginForm" class="auth-form" novalidate>
+
+                <div class="form-group">
+                    <label class="form-label" for="loginIdentifier">Username atau Email</label>
+                    <div class="input-wrapper">
+                        <input type="text" class="form-control-custom" id="loginIdentifier" placeholder="johndoe@example.com" autocomplete="username" required>
+                        <i class="bi bi-person input-icon"></i>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="loginPassword">Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" class="form-control-custom" id="loginPassword" placeholder="••••••••" autocomplete="current-password" required>
+                        <i class="bi bi-lock input-icon"></i>
+                        <button type="button" class="toggle-password" data-target="loginPassword" aria-label="Toggle password">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-auth" id="btnLogin">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Lanjutkan</span>
+                </button>
+
+                <div class="auth-footer">
+                    <span>Belum punya akun? <a href="#" id="showRegister">Daftar sekarang</a></span>
+                </div>
+
+                <div class="security-badge">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Enkripsi ujung-ke-ujung AES-256</span>
+                </div>
+            </form>
+
+            <!-- Form Register -->
+            <form id="registerForm" class="auth-form hidden" novalidate>
+
+                <div class="form-group">
+                    <label class="form-label" for="regUsername">Username</label>
+                    <div class="input-wrapper">
+                        <input type="text" class="form-control-custom" id="regUsername" placeholder="johndoe" autocomplete="username" minlength="3" required>
+                        <i class="bi bi-person input-icon"></i>
+                    </div>
+                    <div class="invalid-feedback" id="regUsernameFeedback"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regEmail">Email</label>
+                    <div class="input-wrapper">
+                        <input type="email" class="form-control-custom" id="regEmail" placeholder="johndoe@example.com" autocomplete="email" required>
+                        <i class="bi bi-envelope input-icon"></i>
+                    </div>
+                    <div class="invalid-feedback" id="regEmailFeedback"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regPassword">Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" class="form-control-custom" id="regPassword" placeholder="Minimal 8 karakter" autocomplete="new-password" minlength="8" required>
+                        <i class="bi bi-lock input-icon"></i>
+                        <button type="button" class="toggle-password" data-target="regPassword" aria-label="Toggle password">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="password-strength" id="strengthBars">
+                        <div class="strength-bar" id="str1"></div>
+                        <div class="strength-bar" id="str2"></div>
+                        <div class="strength-bar" id="str3"></div>
+                        <div class="strength-bar" id="str4"></div>
+                    </div>
+                    <div class="strength-text" id="strengthText"></div>
+                    <div class="invalid-feedback" id="regPasswordFeedback"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regConfirmPassword">Konfirmasi Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" class="form-control-custom" id="regConfirmPassword" placeholder="Ulangi password" autocomplete="new-password" required>
+                        <i class="bi bi-lock-fill input-icon"></i>
+                        <button type="button" class="toggle-password" data-target="regConfirmPassword" aria-label="Toggle password">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="invalid-feedback" id="regConfirmFeedback"></div>
+                </div>
+
+                <button type="submit" class="btn-auth" id="btnRegister">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Daftar Akun</span>
+                </button>
+
+                <div class="auth-footer">
+                    <span>Sudah punya akun? <a href="#" id="showLogin">Masuk</a></span>
+                </div>
+
+                <div class="security-badge">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Enkripsi ujung-ke-ujung AES-256</span>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <script src="/static/js/login.js"></script>
+
+</body>
+</html>
