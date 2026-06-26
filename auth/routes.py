@@ -1,9 +1,3 @@
-"""
-Private Cloud Storage - Auth Routes
-=====================================
-Endpoint autentikasi: register, login, logout, dan profil.
-"""
-
 import re
 from flask import request, jsonify
 from flask_jwt_extended import (
@@ -19,18 +13,16 @@ from auth import auth_bp
 
 
 def is_token_revoked(jwt_header, jwt_payload):
-    """
-    Callback untuk flask-jwt-extended token_in_blocklist_loader.
-
-    Query DB bukan in-memory set agar revokasi tetap valid setelah server restart.
-    """
+    # Callback untuk flask-jwt-extended token_in_blocklist_loader.
+    #
+    # Query DB bukan in-memory set agar revokasi tetap valid setelah server restart.
     jti = jwt_payload['jti']
     return RevokedToken.query.filter_by(jti=jti).first() is not None
 
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
-    """Registrasi user baru. Body: {username, email, password}."""
+    # Registrasi user baru. Body: {username, email, password}.
     data = request.get_json(silent=True)
     if not data:
         return jsonify({'error': 'Request body harus berupa JSON'}), 400
@@ -76,7 +68,7 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """Login dan dapatkan JWT access token. Body: {username, password}."""
+    # Login dan dapatkan JWT access token. Body: {username, password}.
     data = request.get_json(silent=True)
     if not data:
         return jsonify({'error': 'Request body harus berupa JSON'}), 400
@@ -109,7 +101,7 @@ def login():
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    """Logout dengan menyimpan JTI token ke tabel revoked_tokens."""
+    # Logout dengan menyimpan JTI token ke tabel revoked_tokens.
     jti = get_jwt()['jti']
 
     try:

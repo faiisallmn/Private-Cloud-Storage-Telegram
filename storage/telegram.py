@@ -1,10 +1,3 @@
-"""
-Private Cloud Storage - Telegram Storage Backend
-==================================================
-Upload, download, dan delete file via Pyrogram MTProto.
-File disimpan sebagai dokumen di channel/group privat milik bot.
-"""
-
 import io
 import time
 import logging
@@ -27,7 +20,7 @@ if not logger.handlers:
 
 
 class TelegramUploadError(Exception):
-    """Exception untuk error upload/download/delete ke Telegram."""
+    # Exception untuk error upload/download/delete ke Telegram.
 
     def __init__(self, message: str, status_code: int = None, response_body: dict = None):
         super().__init__(message)
@@ -36,7 +29,7 @@ class TelegramUploadError(Exception):
 
 
 class TelegramStorage:
-    """Client untuk menyimpan dan mengambil file via Pyrogram MTProto."""
+    # Client untuk menyimpan dan mengambil file via Pyrogram MTProto.
 
     MAX_RETRIES = 3
     RETRY_DELAY = 2  # detik
@@ -68,7 +61,7 @@ class TelegramStorage:
         logger.info('TelegramStorage Pyrogram Client started sukses — chat_id=%s', storage_chat_id)
 
     def _run_loop(self):
-        """Background thread: buat event loop, buat Client, start, lalu run_forever."""
+        # Background thread: buat event loop, buat Client, start, lalu run_forever.
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -140,12 +133,12 @@ class TelegramStorage:
             self._ready.set()
 
     def _run_sync(self, coro):
-        """Jalankan coroutine di background loop, tunggu hasilnya di Flask thread."""
+        # Jalankan coroutine di background loop, tunggu hasilnya di Flask thread.
         future = asyncio.run_coroutine_threadsafe(coro, self.loop)
         return future.result(timeout=3600)
 
     def upload_file(self, file_bytes: bytes, filename: str) -> Tuple[str, int]:
-        """Upload file ke Telegram via send_document. Return (file_id, message_id)."""
+        # Upload file ke Telegram via send_document. Return (file_id, message_id).
         file_size_mb = len(file_bytes) / (1024 * 1024)
         logger.info('Upload mulai — file=%s, size=%.2f MB', filename, file_size_mb)
 
@@ -211,7 +204,7 @@ class TelegramStorage:
         )
 
     def download_file_stream(self, file_id: str) -> Generator[bytes, None, None]:
-        """Alirkan file dari Telegram secara on-the-fly via stream_media."""
+        # Alirkan file dari Telegram secara on-the-fly via stream_media.
         logger.info('Download stream mulai — file_id=%s...', file_id[:20])
 
         q = queue.Queue(maxsize=20)
@@ -239,7 +232,7 @@ class TelegramStorage:
         return stream_generator()
 
     def delete_file(self, message_id: int) -> bool:
-        """Hapus pesan (file) dari chat Telegram."""
+        # Hapus pesan (file) dari chat Telegram.
         try:
             async def _delete():
                 return await self.client.delete_messages(
@@ -256,7 +249,7 @@ class TelegramStorage:
 
     def upload_chunk(self, chunk_bytes: bytes, chunk_index: int,
                      original_filename: str) -> tuple[str, int]:
-        """Upload satu chunk dengan naming convention {filename}.chunk{index:04d}."""
+        # Upload satu chunk dengan naming convention {filename}.chunk{index:04d}.
         chunk_filename = f'{original_filename}.chunk{chunk_index:04d}'
 
         logger.info(

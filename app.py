@@ -1,9 +1,3 @@
-"""
-Private Cloud Storage - Entry Point
-====================================
-Menjalankan aplikasi Flask untuk Private Cloud Storage.
-"""
-
 import os
 from app import create_app
 

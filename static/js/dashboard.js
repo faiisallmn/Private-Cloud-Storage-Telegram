@@ -286,6 +286,7 @@
 
         window.closeUploadModal = function() {
             document.getElementById('uploadModal').classList.remove('show');
+            if (window.cancelUploadConfirm) window.cancelUploadConfirm();
         };
 
         // Drop zone logic
@@ -306,11 +307,11 @@
         modalDropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             modalDropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) uploadFile(e.dataTransfer.files[0]);
+            if (e.dataTransfer.files.length > 0) prepareUpload(e.dataTransfer.files[0]);
         });
 
         fileInput.addEventListener('change', () => {
-            if (fileInput.files.length > 0) uploadFile(fileInput.files[0]);
+            if (fileInput.files.length > 0) prepareUpload(fileInput.files[0]);
         });
 
         // Drag & drop on main file area
@@ -332,27 +333,54 @@
             document.getElementById('dropOverlay').classList.remove('show');
             if (e.dataTransfer.files.length > 0) {
                 openUploadModal();
-                setTimeout(() => uploadFile(e.dataTransfer.files[0]), 200);
+                setTimeout(() => prepareUpload(e.dataTransfer.files[0]), 200);
             }
         });
 
+        let pendingUploadFile = null;
+
+        window.prepareUpload = function(file) {
+            pendingUploadFile = file;
+            document.getElementById('uploadConfirmSection').style.display = 'block';
+            document.getElementById('uploadActionButtons').style.display = 'flex';
+            document.getElementById('uploadProgressContainer').style.display = 'none';
+            document.getElementById('uploadFileName').textContent = file.name;
+            document.getElementById('uploadFileSize').textContent = formatSize(file.size);
+            document.getElementById('modalDropZone').style.display = 'none';
+        };
+
+        window.cancelUploadConfirm = function() {
+            pendingUploadFile = null;
+            document.getElementById('uploadConfirmSection').style.display = 'none';
+            document.getElementById('modalDropZone').style.display = 'block';
+            fileInput.value = '';
+        };
+
+        window.startConfirmedUpload = function() {
+            if (!pendingUploadFile) return;
+            document.getElementById('uploadActionButtons').style.display = 'none';
+            document.getElementById('uploadProgressContainer').style.display = 'block';
+            uploadFile(pendingUploadFile);
+        };
+
         // Upload function
         window.uploadFile = async function(file) {
-            const progress = document.getElementById('uploadProgress');
             const bar = document.getElementById('progressBar');
             const status = document.getElementById('uploadStatus');
 
-            document.getElementById('uploadFileName').textContent = file.name;
-            document.getElementById('uploadFileSize').textContent = formatSize(file.size);
-            progress.classList.add('show');
-
             bar.style.width = '0%';
+            bar.style.background = '';
             bar.classList.remove('complete');
             status.innerHTML = '<div class="spinner-sm"></div><span>Mengenkripsi file...</span>';
 
             const formData = new FormData();
             formData.append('file', file);
             formData.append('folder_path', currentPath);
+            
+            const chunkSizeInput = document.getElementById('chunkSizeInput');
+            if (chunkSizeInput && chunkSizeInput.value) {
+                formData.append('chunk_size_mb', chunkSizeInput.value);
+            }
 
             try {
                 // Simulated progress stages

@@ -1,9 +1,3 @@
-"""
-Private Cloud Storage - App Factory
-=====================================
-Inisialisasi dan konfigurasi aplikasi Flask.
-"""
-
 import os
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -17,7 +11,7 @@ cors = CORS()
 
 
 def create_app():
-    """Factory function untuk membuat instance aplikasi Flask."""
+    # Factory function untuk membuat instance aplikasi Flask.
 
     load_dotenv()
     # Path template folder berada di root folder (sejajar dengan folder app/)

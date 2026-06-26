@@ -1,9 +1,3 @@
-"""
-Private Cloud Storage - Configuration
-=======================================
-Konfigurasi aplikasi dari environment variables (.env).
-"""
-
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -12,7 +6,7 @@ load_dotenv()
 
 
 class Config:
-    """Konfigurasi utama aplikasi Flask."""
+    # Konfigurasi utama aplikasi Flask.
 
     # set via ENV
     SECRET_KEY = os.environ.get('SECRET_KEY')

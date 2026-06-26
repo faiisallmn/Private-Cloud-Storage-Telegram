@@ -1,12 +1,3 @@
-"""
-Private Cloud Storage - Storage Routes
-========================================
-Blueprint untuk operasi file: upload, download, delete, list, search, dan folder.
-
-Pipeline upload: File → SHA-256 → Chunk? → Encrypt (AES-256) → Telegram → Database
-Setiap chunk dienkripsi dengan key & IV yang berbeda, dilindungi oleh master key.
-"""
-
 import io
 import json
 import logging
@@ -32,11 +23,9 @@ def _get_telegram_client() -> TelegramStorage:
 @storage_bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_file():
-    """
-    Upload file dengan enkripsi AES-256 dan simpan ke Telegram.
-
-    Form-data: file (required), folder_path (optional, default "/")
-    """
+    # Upload file dengan enkripsi AES-256 dan simpan ke Telegram.
+    #
+    # Form-data: file (required), folder_path (optional, default "/")
     user_id = int(get_jwt_identity())
 
     if 'file' not in request.files:
@@ -97,7 +86,14 @@ def upload_file():
         logger.error('Gagal inisialisasi Telegram client: %s', e)
         return jsonify({'error': 'Konfigurasi Telegram tidak valid'}), 500
 
-    chunk_size = current_app.config.get('CHUNK_SIZE_BYTES', 1_800_000_000)
+    chunk_size_mb_str = request.form.get('chunk_size_mb')
+    if chunk_size_mb_str and chunk_size_mb_str.isdigit():
+        chunk_size_mb = int(chunk_size_mb_str)
+        chunk_size_mb = min(max(chunk_size_mb, 1), 1800) # Batas 1-1800 MB
+        chunk_size = chunk_size_mb * 1024 * 1024
+    else:
+        chunk_size = current_app.config.get('CHUNK_SIZE_BYTES', 1_800_000_000)
+        
     chunker = FileChunker(chunk_size=chunk_size)
     master_key = current_app.config['SECRET_KEY']
 
@@ -239,7 +235,7 @@ def upload_file():
 @storage_bp.route('/download/<int:file_id>', methods=['GET'])
 @jwt_required()
 def download_file(file_id):
-    """Download file: dekripsi AES-256 + verifikasi integritas SHA-256."""
+    # Download file: dekripsi AES-256 + verifikasi integritas SHA-256.
     user_id = int(get_jwt_identity())
 
     file_record = FileMetadata.query.filter_by(
@@ -267,7 +263,7 @@ def download_file(file_id):
     master_key = current_app.config['SECRET_KEY']
 
     def generate():
-        """Generator yang meng-yield data terdekripsi dari Telegram."""
+        # Generator yang meng-yield data terdekripsi dari Telegram.
         downloaded = 0
         total = file_record.file_size
 
@@ -347,7 +343,7 @@ def download_file(file_id):
 @storage_bp.route('/list', methods=['GET'])
 @jwt_required()
 def list_files():
-    """List file dan folder milik user di folder tertentu. Query param: folder (default "/")."""
+    # List file dan folder milik user di folder tertentu. Query param: folder (default "/").
     user_id = int(get_jwt_identity())
     folder_path = request.args.get('folder', '/').strip()
 
@@ -400,7 +396,7 @@ def list_files():
 @storage_bp.route('/<int:file_id>', methods=['DELETE'])
 @jwt_required()
 def delete_file(file_id):
-    """Soft delete file (set is_deleted=True). File tetap ada di Telegram."""
+    # Soft delete file (set is_deleted=True). File tetap ada di Telegram.
     user_id = int(get_jwt_identity())
 
     file_record = FileMetadata.query.filter_by(
@@ -439,7 +435,7 @@ def delete_file(file_id):
 @storage_bp.route('/recent', methods=['GET'])
 @jwt_required()
 def recent_files():
-    """Daftar 20 file terbaru milik user, dari semua folder."""
+    # Daftar 20 file terbaru milik user, dari semua folder.
     user_id = int(get_jwt_identity())
     files = FileMetadata.query.filter_by(
         user_id=user_id, is_deleted=False
@@ -463,7 +459,7 @@ def recent_files():
 @storage_bp.route('/favorites', methods=['GET'])
 @jwt_required()
 def favorite_files():
-    """Daftar file favorit milik user."""
+    # Daftar file favorit milik user.
     user_id = int(get_jwt_identity())
     files = FileMetadata.query.filter_by(
         user_id=user_id, is_deleted=False, is_favorite=True
@@ -487,7 +483,7 @@ def favorite_files():
 @storage_bp.route('/<int:file_id>/favorite', methods=['PUT'])
 @jwt_required()
 def toggle_favorite(file_id):
-    """Toggle status favorit sebuah file."""
+    # Toggle status favorit sebuah file.
     user_id = int(get_jwt_identity())
     file_record = FileMetadata.query.filter_by(
         id=file_id, user_id=user_id, is_deleted=False
@@ -511,7 +507,7 @@ def toggle_favorite(file_id):
 @storage_bp.route('/folders/all', methods=['GET'])
 @jwt_required()
 def get_all_folders():
-    """Dapatkan daftar semua folder milik user."""
+    # Dapatkan daftar semua folder milik user.
     user_id = int(get_jwt_identity())
     folders = Folder.query.filter_by(user_id=user_id).order_by(Folder.parent_path, Folder.name).all()
     
@@ -529,7 +525,7 @@ def get_all_folders():
 @storage_bp.route('/folders', methods=['POST'])
 @jwt_required()
 def create_folder():
-    """Buat folder virtual baru. Body: {name, parent_path (optional, default "/")}."""
+    # Buat folder virtual baru. Body: {name, parent_path (optional, default "/")}.
     user_id = int(get_jwt_identity())
     data = request.get_json(silent=True)
 
@@ -588,7 +584,7 @@ def create_folder():
 @storage_bp.route('/search', methods=['GET'])
 @jwt_required()
 def search_files():
-    """Cari file berdasarkan nama (case-insensitive, partial match). Query param: q (required)."""
+    # Cari file berdasarkan nama (case-insensitive, partial match). Query param: q (required).
     user_id = int(get_jwt_identity())
     query = request.args.get('q', '').strip()
 
@@ -631,7 +627,7 @@ def search_files():
 @storage_bp.route('/folders/<int:folder_id>', methods=['DELETE'])
 @jwt_required()
 def delete_folder(folder_id):
-    """Hapus folder virtual jika kosong."""
+    # Hapus folder virtual jika kosong.
     user_id = int(get_jwt_identity())
     
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
@@ -667,7 +663,7 @@ def delete_folder(folder_id):
 @storage_bp.route('/<int:file_id>/move', methods=['PUT'])
 @jwt_required()
 def move_file(file_id):
-    """Pindahkan file ke folder lain."""
+    # Pindahkan file ke folder lain.
     user_id = int(get_jwt_identity())
     data = request.get_json(silent=True)
     if not data:

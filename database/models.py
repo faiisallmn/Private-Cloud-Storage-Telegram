@@ -1,16 +1,10 @@
-"""
-Private Cloud Storage - Database Models
-==========================================
-Model SQLAlchemy untuk User, FileMetadata, Folder, dan RevokedToken.
-"""
-
 from datetime import datetime, timezone
 from app import db
 import bcrypt
 
 
 class User(db.Model):
-    """User untuk autentikasi dan kepemilikan file."""
+    # User untuk autentikasi dan kepemilikan file.
 
     __tablename__ = 'users'
 
@@ -24,14 +18,14 @@ class User(db.Model):
     folders = db.relationship('Folder', backref='owner', lazy='dynamic')
 
     def set_password(self, password: str) -> None:
-        """Hash dan simpan password menggunakan bcrypt."""
+        # Hash dan simpan password menggunakan bcrypt.
         self.password_hash = bcrypt.hashpw(
             password.encode('utf-8'),
             bcrypt.gensalt()
         ).decode('utf-8')
 
     def check_password(self, password: str) -> bool:
-        """Verifikasi password terhadap hash yang tersimpan."""
+        # Verifikasi password terhadap hash yang tersimpan.
         return bcrypt.checkpw(
             password.encode('utf-8'),
             self.password_hash.encode('utf-8')
@@ -42,7 +36,7 @@ class User(db.Model):
 
 
 class FileMetadata(db.Model):
-    """Metadata file: enkripsi AES, chunking, dan referensi file_id Telegram."""
+    # Metadata file: enkripsi AES, chunking, dan referensi file_id Telegram.
 
     __tablename__ = 'file_metadata'
 
@@ -69,7 +63,7 @@ class FileMetadata(db.Model):
 
 
 class Folder(db.Model):
-    """Folder virtual untuk mengorganisir file user."""
+    # Folder virtual untuk mengorganisir file user.
 
     __tablename__ = 'folders'
 
@@ -84,13 +78,7 @@ class Folder(db.Model):
 
 
 class RevokedToken(db.Model):
-    """
-    Persistent JWT blocklist — menggantikan in-memory set.
-
-    Token yang di-logout disimpan di DB sehingga revokasi tetap berlaku
-    setelah server restart. Index pada jti memastikan lookup O(log n)
-    per setiap request yang melewati @jwt_required().
-    """
+    # Persistent JWT blocklist — menggantikan in-memory set.
 
     __tablename__ = 'revoked_tokens'
 

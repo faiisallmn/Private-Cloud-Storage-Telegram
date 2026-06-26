@@ -1,4 +1,4 @@
-"""Private Cloud Storage - AES-256-CBC encryption module."""
+# Private Cloud Storage - AES-256-CBC encryption module.
 
 import hashlib
 import hmac      # Timing-safe comparison via hmac.compare_digest
@@ -10,7 +10,7 @@ from Crypto.Random import get_random_bytes
 
 
 class AESCipher:
-    """Operasi kriptografi AES-256-CBC: enkripsi/dekripsi file dan verifikasi integritas."""
+    # Operasi kriptografi AES-256-CBC: enkripsi/dekripsi file dan verifikasi integritas.
 
     KEY_SIZE = 32
     IV_SIZE = 16
@@ -18,17 +18,17 @@ class AESCipher:
 
     @staticmethod
     def generate_key() -> bytes:
-        """Generate random AES-256 key (32 bytes)."""
+        # Generate random AES-256 key (32 bytes).
         return get_random_bytes(32)
 
     @staticmethod
     def generate_iv() -> bytes:
-        """Generate random IV (16 bytes). Harus baru setiap enkripsi — jangan reuse."""
+        # Generate random IV (16 bytes). Harus baru setiap enkripsi — jangan reuse.
         return get_random_bytes(16)
 
     @staticmethod
     def encrypt_file(file_bytes: bytes, key: bytes, iv: bytes) -> bytes:
-        """Enkripsi data dengan AES-256-CBC + PKCS7 padding. Return ciphertext."""
+        # Enkripsi data dengan AES-256-CBC + PKCS7 padding. Return ciphertext.
         if len(key) != 32:
             raise ValueError(f'Key harus 32 bytes, diterima {len(key)} bytes')
         if len(iv) != 16:
@@ -39,7 +39,7 @@ class AESCipher:
 
     @staticmethod
     def decrypt_file(ciphertext: bytes, key: bytes, iv: bytes) -> bytes:
-        """Dekripsi data dari AES-256-CBC. Return plaintext."""
+        # Dekripsi data dari AES-256-CBC. Return plaintext.
         if len(key) != 32:
             raise ValueError(f'Key harus 32 bytes, diterima {len(key)} bytes')
         if len(iv) != 16:
@@ -50,10 +50,8 @@ class AESCipher:
 
     @staticmethod
     def stream_decrypt_file(stream_generator, key: bytes, iv: bytes):
-        """
-        Dekripsi AES-256-CBC secara streaming dari generator.
-        Menghasilkan chunk plaintext dan melakukan unpad hanya pada blok terakhir.
-        """
+        # Dekripsi AES-256-CBC secara streaming dari generator.
+        # Menghasilkan chunk plaintext dan melakukan unpad hanya pada blok terakhir.
         if len(key) != 32:
             raise ValueError(f'Key harus 32 bytes, diterima {len(key)} bytes')
         if len(iv) != 16:
@@ -89,17 +87,15 @@ class AESCipher:
 
     @staticmethod
     def compute_sha256(file_bytes: bytes) -> str:
-        """Return SHA-256 hex digest dari data."""
+        # Return SHA-256 hex digest dari data.
         return hashlib.sha256(file_bytes).hexdigest()
 
     @staticmethod
     def verify_integrity(file_bytes: bytes, expected_hash: str) -> bool:
-        """
-        Verifikasi integritas file via SHA-256.
-
-        Menggunakan hmac.compare_digest() untuk mencegah timing attack
-        (attacker tidak bisa mengukur waktu perbandingan karakter per karakter).
-        """
+        # Verifikasi integritas file via SHA-256.
+        #
+        # Menggunakan hmac.compare_digest() untuk mencegah timing attack
+        # (attacker tidak bisa mengukur waktu perbandingan karakter per karakter).
         actual_hash = hashlib.sha256(file_bytes).hexdigest()
         return hmac.compare_digest(actual_hash, expected_hash)
 
@@ -109,12 +105,10 @@ _KDF_ITERATIONS = 600_000
 
 
 def _derive_key(master_key: str, salt: bytes) -> bytes:
-    """
-    Derive 32-byte AES key dari master key menggunakan PBKDF2-HMAC-SHA256.
-
-    Salt random 16-byte mencegah rainbow table attack.
-    600.000 iterasi memperlambat brute force ~600.000× vs SHA-256 tunggal.
-    """
+    # Derive 32-byte AES key dari master key menggunakan PBKDF2-HMAC-SHA256.
+    #
+    # Salt random 16-byte mencegah rainbow table attack.
+    # 600.000 iterasi memperlambat brute force ~600.000× vs SHA-256 tunggal.
     return hashlib.pbkdf2_hmac(
         'sha256',
         master_key.encode('utf-8'),
@@ -125,15 +119,13 @@ def _derive_key(master_key: str, salt: bytes) -> bytes:
 
 
 def encrypt_key(aes_key: bytes, master_key: str) -> str:
-    """
-    Enkripsi AES key per-file dengan master key aplikasi.
-
-    Format output (base64): [salt (16B)] + [IV (16B)] + [ciphertext]
-
-    ⚠️  BREAKING CHANGE: Format lama adalah [IV + ciphertext] tanpa salt.
-        Data yang dienkripsi dengan versi sebelumnya TIDAK kompatibel.
-        Diperlukan migrasi DB untuk re-encrypt semua aes_key_encrypted.
-    """
+    # Enkripsi AES key per-file dengan master key aplikasi.
+    #
+    # Format output (base64): [salt (16B)] + [IV (16B)] + [ciphertext]
+    #
+    # ⚠️  BREAKING CHANGE: Format lama adalah [IV + ciphertext] tanpa salt.
+    # Data yang dienkripsi dengan versi sebelumnya TIDAK kompatibel.
+    # Diperlukan migrasi DB untuk re-encrypt semua aes_key_encrypted.
     salt = get_random_bytes(16)
     derived_key = _derive_key(master_key, salt)
     iv = get_random_bytes(16)
@@ -143,13 +135,11 @@ def encrypt_key(aes_key: bytes, master_key: str) -> str:
 
 
 def decrypt_key(encrypted_key: str, master_key: str) -> bytes:
-    """
-    Dekripsi AES key yang dienkripsi oleh encrypt_key().
-
-    Format input (base64): [salt (16B)] + [IV (16B)] + [ciphertext]
-
-    ⚠️  BREAKING CHANGE: Tidak kompatibel dengan format lama [IV + ciphertext].
-    """
+    # Dekripsi AES key yang dienkripsi oleh encrypt_key().
+    #
+    # Format input (base64): [salt (16B)] + [IV (16B)] + [ciphertext]
+    #
+    # ⚠️  BREAKING CHANGE: Tidak kompatibel dengan format lama [IV + ciphertext].
     raw = base64.b64decode(encrypted_key)
     salt = raw[:16]
     iv = raw[16:32]

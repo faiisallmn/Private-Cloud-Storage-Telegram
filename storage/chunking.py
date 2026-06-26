@@ -17,18 +17,12 @@ class FileChunker:
         self.chunk_size = chunk_size
         self._cipher = AESCipher()
 
-    # ─────────────────────────────────────────
     #  1. should_chunk
-    # ─────────────────────────────────────────
-
     def should_chunk(self, file_size: int) -> bool:
 
         return file_size > self.chunk_size
 
-    # ─────────────────────────────────────────
     #  2. split_file
-    # ─────────────────────────────────────────
-
     def split_file(self, file_bytes: bytes) -> List[bytes]:
         chunks = []
         total = len(file_bytes)
@@ -39,20 +33,14 @@ class FileChunker:
 
         return chunks
 
-    # ─────────────────────────────────────────
     #  3. merge_chunks
-    # ─────────────────────────────────────────
-
     def merge_chunks(self, chunks: List[bytes]) -> bytes:
         if not chunks:
             raise ValueError('Daftar chunk tidak boleh kosong')
 
         return b''.join(chunks)
 
-    # ─────────────────────────────────────────
     #  4. get_chunk_info
-    # ─────────────────────────────────────────
-
     def get_chunk_info(self, file_size: int) -> Dict:
         if file_size <= 0:
             return {
@@ -74,10 +62,7 @@ class FileChunker:
             'last_chunk_size': last_chunk_size,
         }
 
-    # ─────────────────────────────────────────
     #  5. encrypt_chunks
-    # ─────────────────────────────────────────
-
     def encrypt_chunks(self, chunks: List[bytes]) -> List[Dict]:
         encrypted_chunks = []
 
@@ -103,10 +88,7 @@ class FileChunker:
 
         return encrypted_chunks
 
-    # ─────────────────────────────────────────
     #  6. decrypt_chunks
-    # ─────────────────────────────────────────
-
     def decrypt_chunks(self, encrypted_chunks: List[Dict]) -> List[bytes]:
         # Urutkan berdasarkan index untuk menjamin urutan benar
         sorted_chunks = sorted(encrypted_chunks, key=lambda c: c['chunk_index'])
@@ -135,10 +117,7 @@ class FileChunker:
         return decrypted_chunks
 
 
-# ─────────────────────────────────────────────
 #  Unit Test
-# ─────────────────────────────────────────────
-
 if __name__ == '__main__':
     print('=' * 60)
     print('  FileChunker — Unit Test')
