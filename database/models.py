@@ -14,6 +14,10 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    tg_api_id_enc = db.Column(db.String(512), nullable=True)
+    tg_api_hash_enc = db.Column(db.String(512), nullable=True)
+    tg_chat_id_enc = db.Column(db.String(512), nullable=True)
+
     files = db.relationship('FileMetadata', backref='owner', lazy='dynamic')
     folders = db.relationship('Folder', backref='owner', lazy='dynamic')
 

@@ -32,9 +32,6 @@ class Config:
     JWT_QUERY_STRING_NAME = 'token'
 
     BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
-    TELEGRAM_API_ID = int(os.environ.get('TELEGRAM_API_ID', 0))
-    TELEGRAM_API_HASH = os.environ.get('TELEGRAM_API_HASH', '')
-    STORAGE_CHAT_ID = os.environ.get('STORAGE_CHAT_ID', '')
 
     CHUNK_SIZE_BYTES = int(os.environ.get('CHUNK_SIZE_BYTES', 1_800_000_000))
 

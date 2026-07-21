@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Private Cloud Storage - Dashboard File Manager">
     <title>Private Cloud Storage — Dashboard</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
 
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -879,13 +880,15 @@
                     </div>
 
                     <div id="uploadProgressContainer" style="display: none; margin-top: 15px;">
-                        <div class="progress-bar-wrapper">
+                        <div class="progress-bar-wrapper" style="position:relative;">
                             <div class="progress-bar-fill" id="progressBar"></div>
+                            <span id="progressPercent" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;color:var(--text-primary);text-shadow:0 0 4px rgba(0,0,0,.6);pointer-events:none;">0%</span>
                         </div>
                         <div class="upload-status" id="uploadStatus">
                             <div class="spinner-sm"></div>
                             <span>Menunggu...</span>
                         </div>
+                        <div id="uploadSizeInfo" style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:4px;font-variant-numeric:tabular-nums;"></div>
                     </div>
                 </div>
             </div>
@@ -902,6 +905,29 @@
             <div class="folder-modal-body">
                 <input type="text" id="folderNameInput" placeholder="Nama folder" autocomplete="off">
                 <button class="btn-create-folder" onclick="createFolder()">Buat</button>
+            </div>
+            <div id="folderError" class="text-danger mt-2" style="display: none; font-size: 0.85rem; padding-top: 8px;"></div>
+        </div>
+    </div>
+
+<!-- confirm delete -->
+    <div class="modal-backdrop-custom" id="confirmDeleteModal">
+        <div class="modal-custom" style="max-width: 400px; text-align: center;">
+            <div style="margin-bottom: 20px;">
+                <i class="bi bi-exclamation-triangle-fill" style="font-size: 2.5rem; color: #ef4444;"></i>
+            </div>
+            <div style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;" id="confirmDeleteTitle">Hapus Item?</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5;" id="confirmDeleteMessage">Apakah Anda yakin ingin menghapus item ini?</div>
+            <div id="confirmDeleteError" style="display: none; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.82rem; color: #f87171; text-align: left; line-height: 1.5;">
+                <i class="bi bi-info-circle-fill" style="margin-right: 6px;"></i><span id="confirmDeleteErrorText"></span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-cancel" onclick="closeConfirmDelete()" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-weight: 500; transition: all 0.2s;">
+                    <i class="bi bi-x-circle"></i> Batal
+                </button>
+                <button id="confirmDeleteBtn" onclick="executeConfirmDelete()" style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: #ef4444; color: #fff; cursor: pointer; font-weight: 500; transition: all 0.2s;">
+                    <i class="bi bi-trash3"></i> Hapus
+                </button>
             </div>
         </div>
     </div>

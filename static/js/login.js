@@ -235,6 +235,15 @@
             const username = document.getElementById('regUsername').value.trim();
             const email    = document.getElementById('regEmail').value.trim();
             const password = document.getElementById('regPassword').value;
+            
+            const api_id   = document.getElementById('regApiId').value.trim();
+            const api_hash = document.getElementById('regApiHash').value.trim();
+            const chat_id  = document.getElementById('regChatId').value.trim();
+
+            if (!api_id || !api_hash || !chat_id) {
+                showError('Telegram API ID, API Hash, dan Chat ID wajib diisi');
+                return;
+            }
 
             const btn = document.getElementById('btnRegister');
             setLoading(btn, true);
@@ -243,7 +252,7 @@
                 const res = await fetch(`${API_BASE}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, email, password }),
+                    body: JSON.stringify({ username, email, password, api_id, api_hash, chat_id }),
                 });
 
                 const data = await res.json();

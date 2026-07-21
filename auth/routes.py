@@ -1,4 +1,5 @@
 import re
+import base64
 from flask import request, jsonify
 from flask_jwt_extended import (
     create_access_token,
@@ -10,6 +11,7 @@ from flask_jwt_extended import (
 from app import db
 from database.models import User, RevokedToken
 from auth import auth_bp
+from crypto.aes import derive_user_key, encrypt_string
 
 
 def is_token_revoked(jwt_header, jwt_payload):
@@ -50,8 +52,22 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({'error': 'Email sudah terdaftar'}), 409
 
+    tg_api_id = data.get('api_id', '').strip()
+    tg_api_hash = data.get('api_hash', '').strip()
+    tg_chat_id = data.get('chat_id', '').strip()
+
+    if not tg_api_id or not tg_api_hash or not tg_chat_id:
+        return jsonify({'error': 'API ID, API Hash, dan Chat ID wajib diisi'}), 400
+
     user = User(username=username, email=email)
     user.set_password(password)
+    
+    # Derive encryption key from password and username
+    derived_key = derive_user_key(password, username)
+    
+    user.tg_api_id_enc = encrypt_string(tg_api_id, derived_key)
+    user.tg_api_hash_enc = encrypt_string(tg_api_hash, derived_key)
+    user.tg_chat_id_enc = encrypt_string(tg_chat_id, derived_key)
 
     try:
         db.session.add(user)
@@ -86,7 +102,14 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({'error': 'Username/email atau password salah'}), 401
 
-    access_token = create_access_token(identity=str(user.id))
+    # Derive key and inject into JWT
+    derived_key = derive_user_key(password, user.username)
+    derived_key_b64 = base64.b64encode(derived_key).decode('utf-8')
+    
+    access_token = create_access_token(
+        identity=str(user.id),
+        additional_claims={'user_key': derived_key_b64}
+    )
 
     return jsonify({
         'access_token': access_token,

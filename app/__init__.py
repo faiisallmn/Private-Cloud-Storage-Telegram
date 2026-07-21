@@ -54,16 +54,7 @@ def create_app():
     from storage.telegram import TelegramStorage
 
 
-    import werkzeug.serving
-    if not app.debug or werkzeug.serving.is_running_from_reloader():
-        app.telegram_storage = TelegramStorage(
-            bot_token=app.config['BOT_TOKEN'],
-            storage_chat_id=app.config.get('STORAGE_CHAT_ID', ''),
-            api_id=app.config.get('TELEGRAM_API_ID', 0),
-            api_hash=app.config.get('TELEGRAM_API_HASH', ''),
-        )
-    else:
-        app.telegram_storage = None
+    # Initialization of TelegramStorage is now handled dynamically per user in storage/routes.py
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(storage_bp, url_prefix='/api/files')

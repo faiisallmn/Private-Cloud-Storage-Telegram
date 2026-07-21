@@ -49,6 +49,33 @@ class AESCipher:
         return unpad(cipher.decrypt(ciphertext), AES.block_size)
 
     @staticmethod
+    def stream_encrypt_to_file(stream_generator, key: bytes, iv: bytes, output_filepath: str):
+        # Enkripsi AES-256-CBC secara streaming dari generator dan tulis langsung ke file.
+        # Menghindari pemuatan seluruh file ke memori.
+        if len(key) != 32:
+            raise ValueError(f'Key harus 32 bytes, diterima {len(key)} bytes')
+        if len(iv) != 16:
+            raise ValueError(f'IV harus 16 bytes, diterima {len(iv)} bytes')
+
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        
+        with open(output_filepath, 'wb') as f_out:
+            # Karena AES block cipher (16 bytes), data sebelum blok terakhir harus kelipatan 16.
+            # Generator asalnya membaca block besar (misal 64KB), kita kumpulkan dan pastikan
+            # kelipatan 16 sebelum encrypt.
+            buffer = bytearray()
+            for chunk in stream_generator:
+                buffer.extend(chunk)
+                if len(buffer) >= AES.block_size:
+                    process_len = (len(buffer) // AES.block_size) * AES.block_size
+                    to_process = bytes(buffer[:process_len])
+                    del buffer[:process_len]
+                    f_out.write(cipher.encrypt(to_process))
+                    
+            # Padding blok terakhir (PKCS7)
+            f_out.write(cipher.encrypt(pad(bytes(buffer), AES.block_size)))
+
+    @staticmethod
     def stream_decrypt_file(stream_generator, key: bytes, iv: bytes):
         # Dekripsi AES-256-CBC secara streaming dari generator.
         # Menghasilkan chunk plaintext dan melakukan unpad hanya pada blok terakhir.
@@ -148,6 +175,28 @@ def decrypt_key(encrypted_key: str, master_key: str) -> bytes:
     derived_key = _derive_key(master_key, salt)
     cipher = AES.new(derived_key, AES.MODE_CBC, iv)
     return unpad(cipher.decrypt(ciphertext), AES.block_size)
+
+
+def derive_user_key(password: str, salt: str) -> bytes:
+    # Derive a 32-byte key directly from a password and string salt
+    return _derive_key(password, salt.encode('utf-8'))
+
+
+def encrypt_string(data: str, derived_key: bytes) -> str:
+    # Encrypts a plaintext string using a pre-derived 32-byte key
+    iv = get_random_bytes(16)
+    cipher = AES.new(derived_key, AES.MODE_CBC, iv)
+    encrypted = cipher.encrypt(pad(data.encode('utf-8'), AES.block_size))
+    return base64.b64encode(iv + encrypted).decode('utf-8')
+
+
+def decrypt_string(encrypted_data: str, derived_key: bytes) -> str:
+    # Decrypts a base64 string back to plaintext using a pre-derived 32-byte key
+    raw = base64.b64decode(encrypted_data)
+    iv = raw[:16]
+    ciphertext = raw[16:]
+    cipher = AES.new(derived_key, AES.MODE_CBC, iv)
+    return unpad(cipher.decrypt(ciphertext), AES.block_size).decode('utf-8')
 
 
 if __name__ == '__main__':

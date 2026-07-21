@@ -363,74 +363,97 @@
             uploadFile(pendingUploadFile);
         };
 
-        // Upload function
+        // Upload function — real-time progress via XMLHttpRequest
         window.uploadFile = async function(file) {
             const bar = document.getElementById('progressBar');
             const status = document.getElementById('uploadStatus');
+            const pctLabel = document.getElementById('progressPercent');
+            const sizeInfo = document.getElementById('uploadSizeInfo');
 
             bar.style.width = '0%';
             bar.style.background = '';
             bar.classList.remove('complete');
-            status.innerHTML = '<div class="spinner-sm"></div><span>Mengenkripsi file...</span>';
+            pctLabel.textContent = '0%';
+            sizeInfo.textContent = '';
+            status.innerHTML = '<div class="spinner-sm"></div><span>Mempersiapkan...</span>';
 
             const formData = new FormData();
             formData.append('file', file);
             formData.append('folder_path', currentPath);
-            
+
             const chunkSizeInput = document.getElementById('chunkSizeInput');
             if (chunkSizeInput && chunkSizeInput.value) {
                 formData.append('chunk_size_mb', chunkSizeInput.value);
             }
 
-            try {
-                // Simulated progress stages
-                await tick(400);
-                bar.style.width = '15%';
-                status.innerHTML = '<div class="spinner-sm"></div><span>Mengenkripsi file...</span>';
+            const totalSize = file.size;
 
-                await tick(300);
-                bar.style.width = '30%';
-                status.innerHTML = '<div class="spinner-sm"></div><span>Mengunggah ke Telegram...</span>';
+            const fmtMB = (bytes) => {
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            };
 
-                const res = await fetch(`${API}/upload`, {
-                    method: 'POST',
-                    headers: authHeadersRaw(),
-                    body: formData,
-                });
+            const xhr = new XMLHttpRequest();
 
-                if (res.status === 401) { logout(true); return; }
+            // — Real-time progress: browser → server —
+            xhr.upload.addEventListener('progress', (e) => {
+                if (!e.lengthComputable) return;
+                const pct = Math.round((e.loaded / e.total) * 100);
+                bar.style.width = pct + '%';
+                pctLabel.textContent = pct + '%';
+                sizeInfo.textContent = fmtMB(e.loaded) + ' / ' + fmtMB(e.total);
+                status.innerHTML = '<div class="spinner-sm"></div><span>Mengirim data... ' + pct + '%</span>';
+            });
 
-                const data = await res.json();
+            // — Upload selesai dikirim ke server, menunggu respons backend —
+            xhr.upload.addEventListener('load', () => {
+                bar.style.width = '100%';
+                pctLabel.textContent = '100%';
+                sizeInfo.textContent = fmtMB(totalSize) + ' / ' + fmtMB(totalSize);
+                status.innerHTML = '<div class="spinner-sm"></div><span>Mengenkripsi & mengunggah ke Telegram...</span>';
+            });
 
-                if (!res.ok) {
+            // — Response dari server sudah diterima —
+            xhr.addEventListener('load', () => {
+                let data;
+                try { data = JSON.parse(xhr.responseText); } catch (_) { data = {}; }
+
+                if (xhr.status === 401) { logout(true); return; }
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    bar.style.width = '100%';
+                    bar.classList.add('complete');
+                    pctLabel.textContent = '100%';
+                    const chunkInfo = data.is_chunked ? ` (${data.total_chunks} chunk)` : '';
+                    status.innerHTML = `<i class="bi bi-check-circle-fill" style="color:var(--success)"></i><span style="color:var(--success)">Upload berhasil${chunkInfo}</span>`;
+                    sizeInfo.textContent = fmtMB(totalSize) + ' / ' + fmtMB(totalSize);
+                    showToast(`"${file.name}" berhasil diupload`, 'success');
+                    setTimeout(() => {
+                        loadFiles(currentPath);
+                        closeUploadModal();
+                    }, 1500);
+                } else {
                     bar.style.width = '100%';
                     bar.style.background = 'var(--danger)';
+                    pctLabel.textContent = '✗';
                     status.innerHTML = `<i class="bi bi-x-circle-fill" style="color:var(--danger)"></i><span style="color:var(--danger)">${data.error || 'Upload gagal'}</span>`;
-                    return;
+                    sizeInfo.textContent = '';
                 }
+            });
 
-                // Success
-                bar.style.width = '100%';
-                bar.classList.add('complete');
-
-                const chunkInfo = data.is_chunked ? ` (${data.total_chunks} chunk)` : '';
-                status.innerHTML = `<i class="bi bi-check-circle-fill" style="color:var(--success)"></i><span style="color:var(--success)">Upload berhasil${chunkInfo}</span>`;
-
-                showToast(`"${file.name}" berhasil diupload`, 'success');
-
-                // Refresh file list
-                setTimeout(() => {
-                    loadFiles(currentPath);
-                    closeUploadModal();
-                }, 1500);
-
-            } catch (err) {
-                console.error('Upload error:', err);
+            // — Error koneksi —
+            xhr.addEventListener('error', () => {
                 bar.style.width = '100%';
                 bar.style.background = 'var(--danger)';
+                pctLabel.textContent = '✗';
                 status.innerHTML = '<i class="bi bi-x-circle-fill" style="color:var(--danger)"></i><span style="color:var(--danger)">Koneksi gagal</span>';
+                sizeInfo.textContent = '';
                 showToast('Upload gagal. Periksa koneksi server.', 'error');
-            }
+            });
+
+            xhr.open('POST', `${API}/upload`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.send(formData);
         };
 
         function tick(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -509,48 +532,88 @@
             }
         };
 
-        // DELETE FILE
+        // DELETE FILE & FOLDER — Custom Confirm Modal
 
-        window.deleteFile = async function(fileId) {
-            if (!confirm('Hapus file ini?')) return;
+        let _confirmDeleteCallback = null;
 
-            try {
-                const res = await fetch(`${API}/${fileId}`, {
-                    method: 'DELETE',
-                    headers: authHeaders(),
-                });
+        window.openConfirmDelete = function(title, message, onConfirm) {
+            document.getElementById('confirmDeleteTitle').textContent = title;
+            document.getElementById('confirmDeleteMessage').textContent = message;
+            document.getElementById('confirmDeleteError').style.display = 'none';
+            _confirmDeleteCallback = onConfirm;
+            document.getElementById('confirmDeleteModal').classList.add('show');
+        };
 
-                if (res.status === 401) { logout(true); return; }
+        window.closeConfirmDelete = function() {
+            document.getElementById('confirmDeleteModal').classList.remove('show');
+            document.getElementById('confirmDeleteError').style.display = 'none';
+            _confirmDeleteCallback = null;
+        };
 
-                const data = await res.json();
-                if (!res.ok) {
-                    showToast(data.error || 'Gagal menghapus', 'error');
-                    return;
+        window.showDeleteError = function(msg) {
+            const el = document.getElementById('confirmDeleteError');
+            document.getElementById('confirmDeleteErrorText').textContent = msg;
+            el.style.display = 'block';
+        };
+
+        window.executeConfirmDelete = function() {
+            if (_confirmDeleteCallback) _confirmDeleteCallback();
+        };
+
+        window.deleteFile = function(fileId) {
+            openConfirmDelete(
+                'Hapus File?',
+                'File yang dihapus tidak dapat dikembalikan. Yakin ingin melanjutkan?',
+                async () => {
+                    try {
+                        const res = await fetch(`${API}/${fileId}`, {
+                            method: 'DELETE',
+                            headers: authHeaders(),
+                        });
+
+                        if (res.status === 401) { logout(true); return; }
+
+                        const data = await res.json();
+                        if (!res.ok) {
+                            showDeleteError(data.error || 'Gagal menghapus file');
+                            return;
+                        }
+
+                        closeConfirmDelete();
+                        showToast(data.message || 'File dihapus', 'success');
+                        loadFiles(currentPath);
+                    } catch (err) {
+                        console.error('Delete error:', err);
+                        showDeleteError('Koneksi gagal. Periksa server Anda.');
+                    }
                 }
-
-                showToast(data.message || 'File dihapus', 'success');
-                loadFiles(currentPath);
-            } catch (err) {
-                console.error('Delete error:', err);
-                showToast('Gagal menghapus file', 'error');
-            }
+            );
         };
 
         // CREATE FOLDER
 
         window.openFolderModal = function() {
             document.getElementById('folderModal').classList.add('show');
+            document.getElementById('folderError').style.display = 'none';
             setTimeout(() => document.getElementById('folderNameInput').focus(), 200);
         };
 
         window.closeFolderModal = function() {
             document.getElementById('folderModal').classList.remove('show');
             document.getElementById('folderNameInput').value = '';
+            document.getElementById('folderError').style.display = 'none';
         };
 
         window.createFolder = async function() {
             const name = document.getElementById('folderNameInput').value.trim();
-            if (!name) { showToast('Nama folder wajib diisi', 'error'); return; }
+            const errDiv = document.getElementById('folderError');
+            errDiv.style.display = 'none';
+            
+            if (!name) { 
+                errDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> Nama folder wajib diisi';
+                errDiv.style.display = 'block';
+                return; 
+            }
 
             try {
                 const res = await fetch(`${API}/folders`, {
@@ -563,7 +626,8 @@
 
                 const data = await res.json();
                 if (!res.ok) {
-                    showToast(data.error || 'Gagal buat folder', 'error');
+                    errDiv.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${data.error || 'Gagal buat folder'}`;
+                    errDiv.style.display = 'block';
                     return;
                 }
 
@@ -572,7 +636,8 @@
                 loadFiles(currentPath);
             } catch (err) {
                 console.error('Create folder error:', err);
-                showToast('Gagal membuat folder', 'error');
+                errDiv.innerHTML = '<i class="bi bi-wifi-off"></i> Gagal membuat folder. Periksa koneksi.';
+                errDiv.style.display = 'block';
             }
         };
 
@@ -669,23 +734,31 @@
 
         // FOLDER DELETE & FILE MOVE
 
-        window.deleteFolder = async function(folderId, folderName) {
-            if (!confirm(`Hapus folder "${folderName}"? Pastikan folder dalam keadaan kosong.`)) return;
-
-            try {
-                const res = await fetch(`${API}/folders/${folderId}`, {
-                    method: 'DELETE',
-                    headers: authHeaders()
-                });
-                if (res.status === 401) { logout(true); return; }
-                const data = await res.json();
-                if (!res.ok) { showToast(data.error || 'Gagal menghapus folder', 'error'); return; }
-                showToast(data.message || 'Folder dihapus', 'success');
-                loadFiles(currentPath);
-            } catch (err) {
-                console.error('Delete folder error:', err);
-                showToast('Gagal menghapus folder', 'error');
-            }
+        window.deleteFolder = function(folderId, folderName) {
+            openConfirmDelete(
+                `Hapus Folder "${folderName}"?`,
+                'Pastikan folder dalam keadaan kosong sebelum menghapus. Folder yang dihapus tidak dapat dikembalikan.',
+                async () => {
+                    try {
+                        const res = await fetch(`${API}/folders/${folderId}`, {
+                            method: 'DELETE',
+                            headers: authHeaders()
+                        });
+                        if (res.status === 401) { logout(true); return; }
+                        const data = await res.json();
+                        if (!res.ok) {
+                            showDeleteError(data.error || 'Gagal menghapus folder');
+                            return;
+                        }
+                        closeConfirmDelete();
+                        showToast(data.message || 'Folder dihapus', 'success');
+                        loadFiles(currentPath);
+                    } catch (err) {
+                        console.error('Delete folder error:', err);
+                        showDeleteError('Koneksi gagal. Periksa server Anda.');
+                    }
+                }
+            );
         };
 
         window.openMoveModal = async function(fileId, filename) {

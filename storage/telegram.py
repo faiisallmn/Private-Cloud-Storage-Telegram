@@ -34,7 +34,8 @@ class TelegramStorage:
     MAX_RETRIES = 3
     RETRY_DELAY = 2  # detik
 
-    def __init__(self, bot_token: str, storage_chat_id: str, api_id: int, api_hash: str):
+    def __init__(self, session_name: str, bot_token: str, storage_chat_id: str, api_id: int, api_hash: str):
+        self.session_name = session_name
         self.bot_token = bot_token
         self.storage_chat_id = int(storage_chat_id)
         self.api_id = api_id
@@ -46,7 +47,7 @@ class TelegramStorage:
         self.loop = None
         self.client = None
 
-        logger.info('TelegramStorage Pyrogram initializing...')
+        logger.info(f'TelegramStorage Pyrogram initializing... session={self.session_name}')
 
         # Jalankan SELURUH inisialisasi Pyrogram di background thread
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -58,7 +59,7 @@ class TelegramStorage:
         if self._init_error:
             raise TelegramUploadError(f'Pyrogram init error: {self._init_error}')
 
-        logger.info('TelegramStorage Pyrogram Client started sukses — chat_id=%s', storage_chat_id)
+        logger.info(f'TelegramStorage Pyrogram Client started sukses — chat_id={storage_chat_id}')
 
     def _run_loop(self):
         # Background thread: buat event loop, buat Client, start, lalu run_forever.
@@ -68,7 +69,7 @@ class TelegramStorage:
         # Session disimpan ke disk agar tidak perlu re-login setiap restart
         # Ini mencegah FLOOD_WAIT dari Telegram
         self.client = Client(
-            "cloud_storage_bot",
+            self.session_name,
             api_id=self.api_id,
             api_hash=self.api_hash,
             bot_token=self.bot_token,
@@ -136,6 +137,54 @@ class TelegramStorage:
         # Jalankan coroutine di background loop, tunggu hasilnya di Flask thread.
         future = asyncio.run_coroutine_threadsafe(coro, self.loop)
         return future.result(timeout=3600)
+
+    def upload_file_from_path(self, filepath: str, filename: str) -> Tuple[str, int]:
+        # Upload file ke Telegram langsung dari path disk. Return (file_id, message_id).
+        import os
+        file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
+        logger.info('Upload mulai (dari disk) — file=%s, size=%.2f MB', filename, file_size_mb)
+
+        last_error = None
+
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                logger.debug('Upload attempt %d/%d — %s', attempt, self.MAX_RETRIES, filename)
+
+                async def _upload():
+                    # Tambahkan track progress agar console tidak terlihat stuck
+                    last_percent = 0
+                    async def progress(current, total):
+                        nonlocal last_percent
+                        percent = int((current / total) * 100)
+                        if percent >= last_percent + 10:
+                            logger.info('Upload progress %s: %d%% (%.2f MB / %.2f MB)', 
+                                        filename, percent, current / (1024*1024), total / (1024*1024))
+                            last_percent = percent
+                            
+                    return await self.client.send_document(
+                        chat_id=self.storage_chat_id,
+                        document=filepath,
+                        file_name=filename,
+                        force_document=True,
+                        progress=progress
+                    )
+
+                msg = self._run_sync(_upload())
+
+                file_id = msg.document.file_id
+                message_id = msg.id
+                logger.info('Upload selesai — %s (msg_id: %d)', filename, message_id)
+                return file_id, message_id
+
+            except Exception as e:
+                last_error = e
+                logger.warning('Upload attempt %d gagal: %s', attempt, e)
+                if attempt < self.MAX_RETRIES:
+                    import time
+                    time.sleep(2 ** attempt)
+
+        logger.error('Upload gagal setelah %d percobaan. File: %s', self.MAX_RETRIES, filename)
+        raise TelegramUploadError(f'Gagal mengunggah {filename}: {str(last_error)}')
 
     def upload_file(self, file_bytes: bytes, filename: str) -> Tuple[str, int]:
         # Upload file ke Telegram via send_document. Return (file_id, message_id).

@@ -36,19 +36,33 @@ Private Cloud Storage adalah aplikasi manajemen file berbasis web yang menjadika
 3. **Konfigurasi Environment Variable**
    Ubah nama file `.env.example` menjadi `.env` dan isi kredensial berikut:
    ```env
-   TELEGRAM_API_ID=masukkan_api_id_anda
-   TELEGRAM_API_HASH=masukkan_api_hash_anda
    BOT_TOKEN=masukkan_bot_token_anda
-   STORAGE_CHAT_ID=masukkan_chat_id_storage_anda
    SECRET_KEY=isi_dengan_string_acak_panjang
    JWT_SECRET_KEY=isi_dengan_string_acak_panjang
    ```
-   > **Catatan:** `STORAGE_CHAT_ID` adalah ID unik dari Channel/Grup tempat file akan disembunyikan. Mulailah bot Anda dan tambahkan bot sebagai admin di grup/channel tersebut.
+   > **Catatan:** Untuk konfigurasi Telegram yang spesifik seperti `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, dan `STORAGE_CHAT_ID`, Anda tidak perlu lagi mengisinya di `.env`. Aplikasi ini mendukung sistem *multi-user*, di mana setiap pendaftar akan menginput kredensial Telegram masing-masing di form **Register** melalui antarmuka web. Kredensial akan dienkripsi secara aman di database.
 
 4. **Jalankan Aplikasi**
-   Setelah semua setup selesai, jalankan server Flask:
+   Terdapat beberapa cara untuk menjalankan server, pilih sesuai dengan lingkungan Anda:
+   
+   **A. Mode Development (Testing UI Dasar)**
    ```bash
    python app.py
+   ```
+
+   **B. Mode Production di Windows (Sangat Disarankan untuk Testing Anda Sekarang)**
+   ```bash
+   waitress-serve --port=5000 --threads=4 --call app:create_app
+   ```
+
+   tunning waitress ( windows )
+   ```bash
+   waitress-serve --port=5000 --threads=4 --recv-bytes=1048576 --inbuf-overflow=104857600 --call app:create_app
+   ```
+
+   **C. Mode Production di Linux VPS (Gunicorn)**
+   ```bash
+   gunicorn -c gunicorn.conf.py "app:create_app()"
    ```
 
 5. **Akses Dashboard**

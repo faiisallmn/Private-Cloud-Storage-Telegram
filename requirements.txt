@@ -16,7 +16,8 @@ requests==2.32.3
 python-dotenv==1.1.0
 
 #Production WSGI Server 
-gunicorn==23.0.0           
+gunicorn==23.0.0
+waitress==3.0.0
 
 #Telegram MTProto
 pyrogram==2.0.106

@@ -4,11 +4,13 @@ import logging
 import hashlib
 
 from flask import Blueprint, request, jsonify, current_app, send_file, Response
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app import db
 from database.models import FileMetadata, Folder
-from crypto.aes import AESCipher, encrypt_key, decrypt_key
+from crypto.aes import AESCipher, encrypt_key, decrypt_key, decrypt_string
+import base64
+from database.models import User
 from storage.chunking import FileChunker
 from storage.telegram import TelegramStorage, TelegramUploadError
 
@@ -16,15 +18,56 @@ storage_bp = Blueprint('storage', __name__, url_prefix='/api/files')
 logger = logging.getLogger(__name__)
 
 
+_TELEGRAM_CLIENTS = {}
+
 def _get_telegram_client() -> TelegramStorage:
-    return current_app.telegram_storage
+    user_id = int(get_jwt_identity())
+    
+    # Return cached client if exists
+    if user_id in _TELEGRAM_CLIENTS:
+        return _TELEGRAM_CLIENTS[user_id]
+        
+    user = User.query.get(user_id)
+    if not user or not user.tg_api_id_enc or not user.tg_api_hash_enc or not user.tg_chat_id_enc:
+        raise ValueError('Kredensial Telegram belum diatur. Silakan perbarui profil Anda.')
+        
+    jwt_data = get_jwt()
+    user_key_b64 = jwt_data.get('user_key')
+    if not user_key_b64:
+        raise ValueError('Sesi tidak valid atau telah kadaluarsa. Silakan login ulang.')
+        
+    user_key = base64.b64decode(user_key_b64)
+    
+    # Decrypt credentials
+    try:
+        api_id_str = decrypt_string(user.tg_api_id_enc, user_key)
+        api_hash = decrypt_string(user.tg_api_hash_enc, user_key)
+        chat_id_str = decrypt_string(user.tg_chat_id_enc, user_key)
+    except Exception as e:
+        logger.error(f'Gagal mendekripsi kredensial Telegram: {e}')
+        raise ValueError('Gagal membaca kredensial Telegram (kunci salah atau data korup).')
+        
+    bot_token = current_app.config.get('BOT_TOKEN')
+    session_name = f'session_user_{user_id}'
+    
+    # Instantiate client dynamically
+    client = TelegramStorage(
+        session_name=session_name,
+        bot_token=bot_token,
+        storage_chat_id=chat_id_str,
+        api_id=int(api_id_str),
+        api_hash=api_hash
+    )
+    
+    _TELEGRAM_CLIENTS[user_id] = client
+    return client
 
 
 @storage_bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_file():
     # Upload file dengan enkripsi AES-256 dan simpan ke Telegram.
-    #
+
     # Form-data: file (required), folder_path (optional, default "/")
     user_id = int(get_jwt_identity())
 
@@ -49,12 +92,14 @@ def upload_file():
         folder_path += '/'
 
     try:
-        file_bytes = uploaded_file.read()
+        # Pindahkan kursor stream ke akhir untuk mendapatkan ukuran file
+        uploaded_file.stream.seek(0, 2)
+        file_size = uploaded_file.stream.tell()
+        uploaded_file.stream.seek(0)
     except Exception as e:
-        logger.error('Gagal membaca file: %s', e)
-        return jsonify({'error': f'Gagal membaca file: {str(e)}'}), 500
+        logger.error('Gagal membaca ukuran stream file: %s', e)
+        return jsonify({'error': f'Gagal membaca ukuran file: {str(e)}'}), 500
 
-    file_size = len(file_bytes)
     original_filename = uploaded_file.filename
     mime_type = uploaded_file.content_type or 'application/octet-stream'
 
@@ -68,17 +113,9 @@ def upload_file():
         }), 413
 
     logger.info(
-        'Upload dimulai — user=%d, file=%s, size=%.2f MB',
+        'Upload dimulai (Streaming) — user=%d, file=%s, size=%.2f MB',
         user_id, original_filename, file_size / (1024 * 1024)
     )
-
-    # SHA-256 dihitung sebelum enkripsi agar hash merepresentasikan file asli bukan ciphertext
-    cipher = AESCipher()
-    hasher = hashlib.sha256()
-    hasher.update(file_bytes)
-    sha256_hash = hasher.hexdigest()
-
-    logger.debug('SHA-256: %s', sha256_hash)
 
     try:
         tg = _get_telegram_client()
@@ -96,22 +133,50 @@ def upload_file():
         
     chunker = FileChunker(chunk_size=chunk_size)
     master_key = current_app.config['SECRET_KEY']
+    cipher = AESCipher()
+
+    import tempfile
+    import os
+
+    hasher = hashlib.sha256()
 
     if not chunker.should_chunk(file_size):
         # File kecil (≤ 1.8 GB): single upload
+        aes_key = cipher.generate_key()
+        aes_iv = cipher.generate_iv()
+        
+        # Generator yang sekaligus menghitung SHA-256
+        def stream_generator():
+            while True:
+                chunk = uploaded_file.stream.read(64 * 1024)
+                if not chunk:
+                    break
+                hasher.update(chunk)
+                yield chunk
+
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.enc')
+        os.close(temp_fd)
+
         try:
-            aes_key = cipher.generate_key()
-            aes_iv = cipher.generate_iv()
-            encrypted_bytes = cipher.encrypt_file(file_bytes, aes_key, aes_iv)
+            cipher.stream_encrypt_to_file(stream_generator(), aes_key, aes_iv, temp_path)
+            sha256_hash = hasher.hexdigest()
+            logger.debug('SHA-256 (Streaming): %s', sha256_hash)
         except Exception as e:
-            logger.error('Enkripsi gagal: %s', e)
+            logger.error('Enkripsi streaming gagal: %s', e)
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             return jsonify({'error': f'Enkripsi gagal: {str(e)}'}), 500
 
         try:
-            file_id, message_id = tg.upload_file(encrypted_bytes, original_filename)
+            file_id, message_id = tg.upload_file_from_path(temp_path, original_filename)
         except TelegramUploadError as e:
             logger.error('Upload Telegram gagal: %s', e)
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             return jsonify({'error': f'Upload ke Telegram gagal: {str(e)}'}), 500
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
         aes_key_encrypted = encrypt_key(aes_key, master_key)
 
@@ -139,59 +204,84 @@ def upload_file():
             return jsonify({'error': f'Gagal menyimpan metadata: {str(e)}'}), 500
 
         logger.info(
-            'Upload berhasil (single) — db_id=%d, file=%s',
+            'Upload berhasil (single streaming) — db_id=%d, file=%s',
             file_record.id, original_filename
         )
 
     else:
-        # File besar (> 1.8 GB): chunked upload, setiap chunk key & IV berbeda
-        raw_chunks = chunker.split_file(file_bytes)
-        total_chunks = len(raw_chunks)
+        # File besar (> 1.8 GB): chunked upload
+        total_chunks = chunker.get_chunk_info(file_size)['total_chunks']
 
         logger.info(
-            'File di-chunk — %d chunks, chunk_size=%.2f MB',
+            'File di-chunk (Streaming) — %d chunks, chunk_size=%.2f MB',
             total_chunks, chunk_size / (1024 * 1024)
         )
-
-        try:
-            encrypted_chunk_list = chunker.encrypt_chunks(raw_chunks)
-        except Exception as e:
-            logger.error('Enkripsi chunk gagal: %s', e)
-            return jsonify({'error': f'Enkripsi chunk gagal: {str(e)}'}), 500
 
         telegram_file_ids = []
         telegram_message_ids = []
         chunk_keys_data = []
 
-        for chunk_info in encrypted_chunk_list:
-            idx = chunk_info['chunk_index']
-            try:
-                file_id, message_id = tg.upload_chunk(
-                    chunk_bytes=chunk_info['encrypted_bytes'],
-                    chunk_index=idx,
-                    original_filename=original_filename,
-                )
-                telegram_file_ids.append(file_id)
-                telegram_message_ids.append(message_id)
+        try:
+            for idx in range(total_chunks):
+                aes_key = cipher.generate_key()
+                aes_iv = cipher.generate_iv()
+                chunk_hasher = hashlib.sha256()
+                
+                # Baca hingga mencapai chunk_size
+                bytes_read = 0
+                def chunk_stream_generator():
+                    nonlocal bytes_read
+                    while bytes_read < chunk_size:
+                        to_read = min(64 * 1024, chunk_size - bytes_read)
+                        chunk = uploaded_file.stream.read(to_read)
+                        if not chunk:
+                            break
+                        bytes_read += len(chunk)
+                        hasher.update(chunk)
+                        chunk_hasher.update(chunk)
+                        yield chunk
 
-                chunk_key_bytes = bytes.fromhex(chunk_info['key_hex'])
-                chunk_keys_data.append({
-                    'chunk_index': idx,
-                    'key_encrypted': encrypt_key(chunk_key_bytes, master_key),
-                    'iv_hex': chunk_info['iv_hex'],
-                    'sha256': chunk_info['sha256_hash'],
-                    'original_size': chunk_info['original_size'],
-                })
+                temp_fd, temp_path = tempfile.mkstemp(suffix=f'_chunk_{idx}.enc')
+                os.close(temp_fd)
 
-                logger.info('Chunk %d/%d uploaded — file_id=%s...', idx + 1, total_chunks, file_id[:20])
+                try:
+                    cipher.stream_encrypt_to_file(chunk_stream_generator(), aes_key, aes_iv, temp_path)
+                    chunk_sha256 = chunk_hasher.hexdigest()
+                except Exception as e:
+                    logger.error('Enkripsi chunk %d gagal: %s', idx, e)
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    raise e
 
-            except TelegramUploadError as e:
-                logger.error('Upload chunk %d gagal: %s', idx, e)
-                return jsonify({
-                    'error': f'Upload chunk {idx} ke Telegram gagal: {str(e)}',
-                    'uploaded_chunks': len(telegram_file_ids),
-                    'total_chunks': total_chunks,
-                }), 500
+                try:
+                    # Fix untuk telegram client yang mengambil byte string vs file path untuk chunk
+                    # Pastikan kita pakai upload_file_from_path dan format nama filenya
+                    chunk_filename = f"{original_filename}.part{idx+1:03d}"
+                    file_id, message_id = tg.upload_file_from_path(temp_path, chunk_filename)
+                    telegram_file_ids.append(file_id)
+                    telegram_message_ids.append(message_id)
+
+                    chunk_keys_data.append({
+                        'chunk_index': idx,
+                        'key_encrypted': encrypt_key(aes_key, master_key),
+                        'iv_hex': aes_iv.hex(),
+                        'sha256': chunk_sha256,
+                        'original_size': bytes_read,
+                    })
+
+                    logger.info('Chunk %d/%d uploaded (Streaming) — file_id=%s...', idx + 1, total_chunks, file_id[:20])
+                finally:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+
+        except Exception as e:
+            return jsonify({
+                'error': f'Upload chunked gagal: {str(e)}',
+                'uploaded_chunks': len(telegram_file_ids),
+                'total_chunks': total_chunks,
+            }), 500
+
+        sha256_hash = hasher.hexdigest()
 
         try:
             file_record = FileMetadata(
@@ -552,7 +642,7 @@ def create_folder():
     ).first()
 
     if existing:
-        return jsonify({'error': f'Folder "{name}" sudah ada di {parent_path}'}), 409
+        return jsonify({'error': 'Nama folder sudah digunakan.'}), 409
 
     try:
         folder = Folder(
